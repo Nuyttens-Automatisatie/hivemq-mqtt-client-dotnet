@@ -356,7 +356,7 @@ public sealed class SparkplugHostApplication : IDisposable
             Topic = topic,
             Payload = statePayload.ToUtf8Bytes(),
             QoS = QualityOfService.AtLeastOnceDelivery,
-            Retain = false,
+            Retain = true,
         };
         await this.client.PublishAsync(message, cancellationToken).ConfigureAwait(false);
     }
