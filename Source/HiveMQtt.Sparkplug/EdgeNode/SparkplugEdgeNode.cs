@@ -96,6 +96,11 @@ public sealed class SparkplugEdgeNode : IDisposable
     public event EventHandler<SparkplugMessageReceivedEventArgs>? DeviceCommandReceived;
 
     /// <summary>
+    /// Event raised when a State message (STATE) is received.
+    /// </summary>
+    public event EventHandler<SparkplugMessageReceivedEventArgs>? StateMessageReceived;
+
+    /// <summary>
     /// Event raised when a command message is received but could not be parsed.
     /// </summary>
     public event EventHandler<SparkplugMessageParseErrorEventArgs>? MessageParseError;
@@ -172,10 +177,12 @@ public sealed class SparkplugEdgeNode : IDisposable
 
             var ncmdTopic = SparkplugTopic.NodeCommand(this.options.GroupId!, this.options.EdgeNodeId!, this.options.SparkplugNamespace);
             var dcmdFilter = $"{this.options.SparkplugNamespace}/{this.options.GroupId}/DCMD/{this.options.EdgeNodeId}/#";
+            var stateFilter = $"{this.options.SparkplugNamespace}/STATE/#";
 
             var subOptions = new SubscribeOptions();
             subOptions.TopicFilters.Add(new TopicFilter(ncmdTopic.Build(), QualityOfService.AtLeastOnceDelivery));
             subOptions.TopicFilters.Add(new TopicFilter(dcmdFilter, QualityOfService.AtLeastOnceDelivery));
+            subOptions.TopicFilters.Add(new TopicFilter(stateFilter, QualityOfService.AtLeastOnceDelivery));
             var subscribeResult = await this.client.SubscribeAsync(subOptions).ConfigureAwait(false);
 
             if (subscribeResult.Subscriptions.Count != subOptions.TopicFilters.Count)
@@ -524,6 +531,12 @@ public sealed class SparkplugEdgeNode : IDisposable
             return;
         }
 
+        if (sparkplugTopic.MessageType == SparkplugMessageType.STATE)
+        {
+            this.HandleState(topicStr, e.PublishMessage.Payload, sparkplugTopic);
+            return;
+        }
+
         if (sparkplugTopic.GroupId != this.options.GroupId || sparkplugTopic.EdgeNodeId != this.options.EdgeNodeId)
         {
             return;
@@ -563,6 +576,27 @@ public sealed class SparkplugEdgeNode : IDisposable
         else
         {
             this.DeviceCommandReceived?.Invoke(this, args);
+        }
+    }
+
+    // Handle state messages, these are not protobuf encoded but are JSON UTF-8 Data
+    private void HandleState(string rawTopic, byte[]? payloadBytes, SparkplugTopic topic)
+    {
+        if (payloadBytes is null || payloadBytes.Length == 0)
+        {
+            this.MessageParseError?.Invoke(this, new SparkplugMessageParseErrorEventArgs(rawTopic, null, "Empty payload."));
+            return;
+        }
+
+        if (SparkplugStatePayload.TryDecode(payloadBytes, out var payload) && payload is not null)
+        {
+            var args = new SparkplugMessageReceivedEventArgs(topic, rawTopic, payload);
+            this.StateMessageReceived?.Invoke(this, args);
+        }
+        else
+        {
+            this.MessageParseError?.Invoke(this, new SparkplugMessageParseErrorEventArgs(rawTopic, payloadBytes, "Payload is not valid Sparkplug B protobuf."));
+            return;
         }
     }
 
