@@ -2,7 +2,7 @@ var target = Argument("Target", "Default");
 var configuration =
     HasArgument("Configuration") ? Argument<string>("Configuration") :
     EnvironmentVariable("Configuration", "Release");
-var targetFramework = Argument("framework", "net6.0");
+var targetFramework = Argument("framework", "net10.0");
 
 var artifactsDirectory = Directory("./Artifacts");
 
