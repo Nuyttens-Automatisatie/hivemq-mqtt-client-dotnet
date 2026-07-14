@@ -65,6 +65,9 @@ jobs:
   publish:
     needs: build
     runs-on: ubuntu-latest
+    permissions: 
+      packages: write
+      
     steps:
       - name: Download NuGet packages for .NET 10.0
         uses: actions/download-artifact@v8
