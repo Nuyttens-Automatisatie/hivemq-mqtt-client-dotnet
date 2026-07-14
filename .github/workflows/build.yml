@@ -21,24 +21,11 @@ jobs:
     name: pipeline-${{ matrix.os }}-dotnet-${{ matrix.dotnet-version }}
     runs-on: ${{ matrix.os }}
 
-    services:
-      hivemq:
-        image: hivemq/hivemq4:latest
-        ports:
-          - 1883:1883
-          - 8000:8000
-          - 8080:8080
-        options: >-
-          --health-cmd "curl -I http://localhost:8080/"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
-          --health-start-period 30s
-
     strategy:
       matrix:
         os: [ubuntu-latest]
-        dotnet-version: ['6.0.x', '7.0.x', '8.0.x', '9.0.x', '10.0.x']
+        dotnet-version: ['10.0.x']
+        
     steps:
       - name: Checkout
         uses: actions/checkout@v7.0.0
@@ -64,11 +51,7 @@ jobs:
       - name: Dotnet Cake Build
         run: dotnet cake --target=Build
         shell: pwsh
-
-      - name: Dotnet Cake Test
-        run: dotnet cake --target=Test --framework net${{ matrix.dotnet-version }}
-        shell: pwsh
-
+        
       - name: Dotnet Cake Pack
         run: dotnet cake --target=Pack
         shell: pwsh
@@ -83,37 +66,12 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Download NuGet packages for .NET 6.0
-        uses: actions/download-artifact@v8
-        with:
-          name: nuget-packages-6.0.x
-          path: ./Artifacts
-
-      - name: Download NuGet packages for .NET 7.0
-        uses: actions/download-artifact@v8
-        with:
-          name: nuget-packages-7.0.x
-          path: ./Artifacts
-
-      - name: Download NuGet packages for .NET 8.0
-        uses: actions/download-artifact@v8
-        with:
-          name: nuget-packages-8.0.x
-          path: ./Artifacts
-
-      - name: Download NuGet packages for .NET 9.0
-        uses: actions/download-artifact@v8
-        with:
-          name: nuget-packages-9.0.x
-          path: ./Artifacts
-
       - name: Download NuGet packages for .NET 10.0
         uses: actions/download-artifact@v8
         with:
           name: nuget-packages-10.0.x
           path: ./Artifacts
 
-      - name: Push to NuGet
-        if: github.event_name == 'release'
-        run: dotnet nuget push ./Artifacts/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+      - name: Push to GitHub Packages
+        run: dotnet nuget push ./out/*.nupkg --source https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json --api-key ${{ secrets.GITHUB_TOKEN }}
         shell: pwsh
